@@ -8,6 +8,7 @@ __uint8_t arr[MAX_ARR_LENGTH];
 __uint16_t remLen = MAX_ARR_LENGTH;
 
 __uint8_t runId; //for checking whether the non-volatile memory has changed
+__uint8_t loopCount= 0; //to sync with memory
 
 typedef struct _s_memoryManager {
  __uint16_t blockCount;
@@ -82,6 +83,7 @@ void writeToMemory(){
         return;
     }
     __uint8_t temp;
+    runId++;
     fputc(runId, fp);
     temp = memManager.blockCount>>8;
     fputc(temp, fp); //HB of blockCount
@@ -380,14 +382,20 @@ void initialiseData(){
             }
             return;
         }
-
-        //Now, in case the above three cases don't occur, we have valid data which has to be saved
-        //such data is of two types, __uint16_t types on first line to be saved to memManager
-        //__uint8_t types data in next line to be saved in data array
-        readCount++;
-        if(readCount == 1){
-            runId = ++ch;
-            continue;
+        //There is some data in non-volatile memory
+        if(++readCount == 1){
+            if(++loopCount == 1){ 
+                //if first loop of program, then just update the runId and continue to
+                //updating volatile memory
+                runId = ++ch;
+                continue;
+            }
+            //else if not the first loop and run id is changed, then the nonvolatile memory
+            //has changed from elsewhere, so update volatile memory with that
+            //else no need to update
+            else if (runId == ch)
+                return;
+            else runId = ch; //update runId of current program with that of memory
         }
 
         if(readCount>20) arr[arrCount++] = ch;  //first 20 bytes are reserved for memManager
@@ -416,10 +424,8 @@ void initialiseData(){
 
 int main(){
     __uint8_t ch;
-    __uint8_t loopCount= 0; //to sync with memory
     
 	while(1){
-        if(loopCount++%10 == 0) initialiseData();
 		printf("Choose an operation from the following:\n");
 		printf("1. Store new Data\n");
 		printf("2. Delete existing data\n");
@@ -441,7 +447,7 @@ int main(){
 				clearInput();
 			}
 		}
-
+        initialiseData();
 		switch(ch){
 			case 1: storeNewData();
 				break;
