@@ -298,6 +298,33 @@ void printMemManager(){
     printf("Defragmented: %hu\n",memManager.defragmented);
 }
 
+void exitApp(){
+    FILE* fp;
+
+    fp = fopen("data.txt", "w+");
+    if(fp == NULL){
+        printf("Cannot open file for saving data. Please try again.\n\n");
+        return;
+    }
+
+    fputc(memManager.blockCount+'0', fp);
+    fputc(' ', fp);
+    fputc(memManager.actualMemoryUsed+'0', fp);
+    fputc(' ', fp);
+    fputc(memManager.currentFreeIndex+'0', fp);
+    fputc(' ', fp);
+    fputc(memManager.defragmented+'0',fp);
+    fputc('\n', fp);
+    for(int i = 0; i <MAX_ARR_LENGTH; i++){
+        fputc(arr[i]+'0', fp);
+        fputc(' ', fp);
+    }
+
+    fclose(fp);
+    printf("Write complete. Exiting now\n\n");
+    exit(0);
+}
+
 int main(){
     __uint8_t ch;
     
@@ -306,21 +333,6 @@ int main(){
     if(fp == NULL){
         printf("Error! Could not open memory file.\n");
         exit(1);
-    }
-    
-    int num;
-    fscanf(fp, "%d", &num);
-    printf("\n\n%d\n\n", num);
-
-    memManager.blockCount = 0;
-    memManager.actualMemoryUsed = 0;
-    memManager.currentFreeIndex = 0;
-    memManager.defragmented = true;
-    int i = 0;
-    
-    while(i<MAX_ARR_LENGTH){
-        arr[i] = 255;
-        i++;
     }
 
 	while(1){
@@ -359,7 +371,7 @@ int main(){
 				break;
             case 6: printMemManager();
                 break;
-            case 7: exit(0);
+            case 7: exitApp();
 			default: printf("Invalid Choice\n\n");
 		}
 	}

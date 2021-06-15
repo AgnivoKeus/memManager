@@ -34,53 +34,48 @@ int main(){
 
     while(1){
         ch = fgetc(fp);
-
-        if(ch == ' '|| ch == '\n' || feof(fp)){ 
-            buffCount = 0;
-            readCount++;
-            printf("Read count: %hu\n", readCount);
-            if(lineCounter == 0){
-                switch(readCount){
-                    case 1: memManager.blockCount = atoi(buffer);
-                            break;
-                    case 2: memManager.actualMemoryUsed = atoi(buffer);
-                            break;
-                    case 3: memManager.currentFreeIndex = atoi(buffer);
-                            break;
-                    case 4: memManager.defragmented = atoi(buffer);
-                            break;
-                    default: printf("Error in line 52.\n\n");
-                            exit(1);
-                }
-                if(ch == '\n') lineCounter++;
-            }
-            
-            else data[arrCount++] = atoi(buffer);
-            bzero(buffer,3);
-            if(feof(fp)){
-                printf("Reached EOF. Closing!\n");
-                break;
-            }
+        if(ch == ' ') continue;
+        if(ch == '\n'){
+            lineCounter++;
             continue;
         }
 
         if(feof(fp)){
-            printf("Reached EOF. Closing!\n");
-            break;
-        }
-        buffer[buffCount++] = ch;
-        // buffCount++;
-        // if(ch == 65487) break;
-        printf("%hu\n", ch);
-    }
-    fclose(fp);
+            printf("Got End of file. Now closing.\n");
+                fclose(fp);
 
-    printf("\n\n");
-    printf("%hu\n", memManager.blockCount);
-    printf("%hu\n", memManager.actualMemoryUsed);
-    printf("%hu\n", memManager.currentFreeIndex);
-    printf("%hu\n", memManager.defragmented);
-    for(int j = 0; j<MAX_DATA_LENGTH; j++){
-        printf("%hu\n", data[j]);
+            printf("\n\n");
+            printf("%hu\n", memManager.blockCount);
+            printf("%hu\n", memManager.actualMemoryUsed);
+            printf("%hu\n", memManager.currentFreeIndex);
+            printf("%hu\n", memManager.defragmented);
+            for(int j = 0; j<MAX_DATA_LENGTH; j++){
+                printf("%hu\n", data[j]);
+            }
+            exit(0);
+        }
+        
+        //Now, in case the above three cases don't occur, we have valid data which has to be saved
+        //such data is of two types, __uint16_t types on first line to be saved to memManager
+        //__uint8_t types data in next line to be saved in data array
+        if(lineCounter==0){
+            ch = ch -'0'; //converting from character to number
+            readCount++;
+            switch(readCount){
+                case 1: memManager.blockCount = ch;
+                        break;
+                case 2: memManager.actualMemoryUsed = ch;
+                        break;
+                case 3: memManager.currentFreeIndex = ch;
+                        break;
+                case 4: memManager.defragmented = ch;
+                        break;
+                default: printf("Error in line 52.\n\n");
+                        exit(1);
+            }
+        }
+
+        else data[arrCount++] = ch-'0';
+        printf("%hu\n", ch);
     }
 }
