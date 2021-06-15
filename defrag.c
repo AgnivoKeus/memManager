@@ -93,7 +93,7 @@ void deleteRecord(__uint16_t pos){
 
         __uint16_t j=destIndex;
         while(j<memManager.currentFreeIndex){ //
-                arr[j] = 0;
+                arr[j] = 255;
             j++;
         }
         

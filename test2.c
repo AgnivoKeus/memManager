@@ -59,7 +59,7 @@ int main(){
         //such data is of two types, __uint16_t types on first line to be saved to memManager
         //__uint8_t types data in next line to be saved in data array
         if(lineCounter==0){
-            ch = ch -'0'; //converting from character to number
+            ch = ch; //converting from character to number
             readCount++;
             switch(readCount){
                 case 1: memManager.blockCount = ch;

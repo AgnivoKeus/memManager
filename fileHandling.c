@@ -7,11 +7,13 @@
 __uint8_t arr[MAX_ARR_LENGTH];
 __uint16_t remLen = MAX_ARR_LENGTH;
 
+__uint8_t runId; //for checking whether the non-volatile memory has changed
+
 typedef struct _s_memoryManager {
  __uint16_t blockCount;
  __uint16_t actualMemoryUsed;  //actual memory of all valid blocks;
  __uint16_t currentFreeIndex; //next index where a record can be added
- __uint16_t defragmented; //whether already defragmented, reset this if delete performed
+ __uint8_t defragmented; //whether already defragmented, reset this if delete performed
 } _s_memoryManager;
 
 _s_memoryManager memManager;
@@ -31,7 +33,7 @@ char inputId(){
         scanf(" %hhu", &id);
         clearInput();
         printf("\n\n");
-        if(id == 255) printf("255 is not a valid entry. ");
+        if(id == 255) printf("255 is not a valid entry.\n ");
         else break;
     }
 	return id;
@@ -43,7 +45,6 @@ void printArray(){
 	printf("\n\n");
 }
 
-
 bool validateId(__uint8_t id){
 	__uint16_t i = 0;
     if(memManager.blockCount == 0) return true;
@@ -54,6 +55,55 @@ bool validateId(__uint8_t id){
 		else i = i+ 3 + arr[i+2];
 	}
 	return true;
+}
+
+void writeToMemory(){
+        /*
+    <Memory manager size 20 bytes
+
+    write LB blockCount
+    write HB blockCount
+    write LB actualMemoryUsed
+    write HB actualMemoryUsed
+    write LB currentFree index
+    write HB currentFree index
+    write byte defragemented
+    <dummy read 7-19>
+
+    byte 20
+    write array[i]
+
+    */
+    FILE* fp;
+
+    fp = fopen("data.txt", "w+");
+    if(fp == NULL){
+        printf("Cannot open file for saving data. Please try again.\n\n");
+        return;
+    }
+    __uint8_t temp;
+    fputc(runId, fp);
+    temp = memManager.blockCount>>8;
+    fputc(temp, fp); //HB of blockCount
+    fputc(memManager.blockCount, fp); //LB
+    
+    temp = memManager.actualMemoryUsed>>8;
+    fputc(temp, fp); //HB of actual memory used
+    fputc(memManager.actualMemoryUsed, fp); //LB
+
+    temp = memManager.currentFreeIndex>>8;
+    fputc(temp,fp); //HB
+    fputc(memManager.currentFreeIndex,fp);  //currFreeIndex LB
+
+    fputc(memManager.defragmented,fp); //only 1 byte long
+
+    for(int i = 8; i<20;i++){
+        fputc('D', fp); //putting dummy data into reserved space
+    }
+    for(int i = 0; i <MAX_ARR_LENGTH; i++){
+        fputc(arr[i], fp);
+    }
+    fclose(fp);
 }
 
 void invalidateId(__uint8_t id){
@@ -69,6 +119,7 @@ void invalidateId(__uint8_t id){
                 memManager.blockCount--;
                 memManager.defragmented = false;
                 memManager.actualMemoryUsed = memManager.actualMemoryUsed - (arr[i+2] + 3); // decreasing by xDataLen
+                writeToMemory();
                 return;
         }
 		else i = i+ 3 + arr[i+2];
@@ -93,7 +144,7 @@ void deleteRecord(__uint16_t pos){
 
         __uint16_t j=destIndex;
         while(j<memManager.currentFreeIndex){ //
-                arr[j] = 0;
+                arr[j] = 255;
             j++;
         }
         
@@ -104,7 +155,6 @@ void deleteRecord(__uint16_t pos){
 
 void defragment(){
     __uint16_t i =0;
-    printArray();
     __uint16_t currentFreeIndex = memManager.currentFreeIndex;
     while(i<memManager.currentFreeIndex){
         if(!arr[i]) //if entry is invalid
@@ -118,7 +168,7 @@ void defragment(){
         j++;
     }
     memManager.defragmented = true;
-    printArray();
+    writeToMemory();
 }
 
 
@@ -207,6 +257,7 @@ void addEntry(__uint8_t id, bool overWrite){
     memManager.actualMemoryUsed = memManager.actualMemoryUsed+dataLen-xDataLen+3;
 
     memManager.blockCount++;
+    writeToMemory();
     remLen = MAX_ARR_LENGTH - memManager.actualMemoryUsed;
 }
 
@@ -296,46 +347,79 @@ void printMemManager(){
     printf("Block count: %hu\n", memManager.blockCount);
     printf("CurrentFreeIndex: %hu\n", memManager.currentFreeIndex);
     printf("Defragmented: %hu\n",memManager.defragmented);
+    printf("\n\n");
 }
 
-void exitApp(){
+void initialiseData(){
     FILE* fp;
-
-    fp = fopen("data.txt", "w+");
-    if(fp == NULL){
-        printf("Cannot open file for saving data. Please try again.\n\n");
-        return;
-    }
-
-    fputc(memManager.blockCount+'0', fp);
-    fputc(' ', fp);
-    fputc(memManager.actualMemoryUsed+'0', fp);
-    fputc(' ', fp);
-    fputc(memManager.currentFreeIndex+'0', fp);
-    fputc(' ', fp);
-    fputc(memManager.defragmented+'0',fp);
-    fputc('\n', fp);
-    for(int i = 0; i <MAX_ARR_LENGTH; i++){
-        fputc(arr[i]+'0', fp);
-        fputc(' ', fp);
-    }
-
-    fclose(fp);
-    printf("Write complete. Exiting now\n\n");
-    exit(0);
-}
-
-int main(){
     __uint8_t ch;
-    
-    FILE *fp;
+    __uint16_t readCount = 0;
+    __uint8_t temp = 0;
+    int arrCount = 0;
+
     fp = fopen("data.txt", "r");
     if(fp == NULL){
         printf("Error! Could not open memory file.\n");
         exit(1);
     }
 
+    while(1){
+        ch = fgetc(fp);
+        if(feof(fp)){
+            printf("Got End of file. Now closing.\n");
+            fclose(fp);
+            if(readCount == 0){ //if the program is being run for the first time,
+                                //initialise all fields
+                memManager.blockCount = 0;
+                memManager.actualMemoryUsed = 0;
+                memManager.currentFreeIndex = 0;
+                memManager.defragmented = 1;
+
+                for(int i = 0; i <MAX_ARR_LENGTH; i++)
+                    arr[i] = 255;
+            }
+            return;
+        }
+
+        //Now, in case the above three cases don't occur, we have valid data which has to be saved
+        //such data is of two types, __uint16_t types on first line to be saved to memManager
+        //__uint8_t types data in next line to be saved in data array
+        readCount++;
+        if(readCount == 1){
+            runId = ++ch;
+            continue;
+        }
+
+        if(readCount>20) arr[arrCount++] = ch;  //first 20 bytes are reserved for memManager
+                                                //rest are all 1 byte data
+        else{
+            switch(readCount){    
+                case 2: temp = ch; //block count HB
+                        break;
+                case 3: memManager.blockCount = (temp<<8)|ch; //block count LB
+                        break;
+                case 4: temp = ch<<8; //actual memory used HB
+                        break;
+                case 5: memManager.actualMemoryUsed = ch|temp; //actual memory used LB
+                        break;
+                case 6: temp = ch<<8;   //currFreeIndex HB
+                        break;
+                case 7: memManager.currentFreeIndex = ch|temp; //HB
+                        break;
+                case 8: memManager.defragmented = ch; //defragmented is 1 byte long
+                        break;
+                default: break;
+            }
+        }
+    }
+}
+
+int main(){
+    __uint8_t ch;
+    __uint8_t loopCount= 0; //to sync with memory
+    
 	while(1){
+        if(loopCount++%10 == 0) initialiseData();
 		printf("Choose an operation from the following:\n");
 		printf("1. Store new Data\n");
 		printf("2. Delete existing data\n");
@@ -366,12 +450,13 @@ int main(){
 			case 3: printData(inputId());
 				break;
 			case 4: defragment();
-            
+                break;
 			case 5: printArray();
 				break;
             case 6: printMemManager();
                 break;
-            case 7: exitApp();
+            case 7: writeToMemory();
+                    exit(0);
 			default: printf("Invalid Choice\n\n");
 		}
 	}
